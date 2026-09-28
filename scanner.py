@@ -16,8 +16,18 @@ def cg(path,params=None):
     headers={}
     key=os.getenv("COINGECKO_API_KEY","").strip()
     if key: headers["x-cg-demo-api-key"]=key
-    r=S.get(base+path,params=params,headers=headers,timeout=30)
-    r.raise_for_status(); return r.json()
+    last=None
+    for attempt in range(5):
+        r=S.get(base+path,params=params,headers=headers,timeout=30)
+        last=r
+        if r.status_code != 429:
+            r.raise_for_status()
+            time.sleep(6.5)
+            return r.json()
+        wait=int(r.headers.get("Retry-After") or min(15*(attempt+1),60))
+        print(f"CoinGecko rate limit; waiting {wait}s (attempt {attempt+1}/5)")
+        time.sleep(wait)
+    last.raise_for_status()
 
 def markets():
     out=[]
@@ -27,7 +37,6 @@ def markets():
         if not data: break
         out.extend(data)
         if min([(x.get("market_cap") or 10**18) for x in data]) < CFG["min_market_cap"]: break
-        time.sleep(1.2)
     return out
 
 def hist_max_x(coin_id):
@@ -142,7 +151,7 @@ def main():
         prelim.append((s["preliminary_score"],c,s))
     prelim.sort(reverse=True,key=lambda x:x[0])
     rows=[]
-    for _,c,_ in prelim[:35]:
+    for _,c,_ in prelim[:12]:
         mx=hist_max_x(c["id"])
         s=score_market(c,mx)
         rows.append({"id":c["id"],"symbol":c["symbol"].upper(),"name":c["name"],
@@ -150,7 +159,6 @@ def main():
           "fdv":c.get("fully_diluted_valuation"),"volume_24h":c.get("total_volume"),
           "change_24h":c.get("price_change_percentage_24h"),
           "max_x_proxy":mx,**s})
-        time.sleep(1.2)
     rows.sort(key=lambda x:x["preliminary_score"],reverse=True)
     old={}
     if STATE.exists():
