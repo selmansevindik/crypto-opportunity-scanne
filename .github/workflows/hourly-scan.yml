@@ -29,8 +29,9 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Test Telegram connection on setup/code push
-        if: github.event_name == 'push'
+      - name: Test Telegram connection
+        if: github.event_name != 'schedule'
+        continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
