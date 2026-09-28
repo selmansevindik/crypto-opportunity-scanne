@@ -4,9 +4,19 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+  push:
+    paths:
+      - "scanner.py"
+      - "config.json"
+      - "requirements.txt"
+      - ".github/workflows/hourly-scan.yml"
 
 permissions:
   contents: write
+
+concurrency:
+  group: crypto-hourly-scan
+  cancel-in-progress: false
 
 jobs:
   scan:
@@ -19,6 +29,13 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+      - name: Test Telegram connection on setup/code push
+        if: github.event_name == 'push'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c "import scanner; ok=scanner.send_telegram('✅ Crypto Opportunity Scanner bağlantısı başarılı. Saatlik tarayıcı aktif.'); raise SystemExit(0 if ok else 2)"
       - name: Run scanner
         env:
           COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
