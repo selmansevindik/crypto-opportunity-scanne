@@ -97,9 +97,32 @@ def score_market(c,max_x=None):
       "liquidity_distribution":round(liq,1),"preliminary_score":round(final,1),
       "fdv_mc":round(ratio,2) if ratio else None}
 
+def telegram_chat_id(token):
+    chat=os.getenv("TELEGRAM_CHAT_ID","").strip()
+    if chat: return chat
+    # If CHAT_ID is not configured, discover the latest private chat that messaged the bot.
+    # Send /start to the bot once before the first workflow run.
+    try:
+        r=S.get(f"https://api.telegram.org/bot{token}/getUpdates",timeout=20)
+        r.raise_for_status()
+        updates=r.json().get("result",[])
+        for u in reversed(updates):
+            m=u.get("message") or u.get("edited_message") or {}
+            ch=m.get("chat") or {}
+            if ch.get("id") and ch.get("type")=="private":
+                return str(ch["id"])
+    except Exception:
+        pass
+    return ""
+
 def send_telegram(msg):
-    token=os.getenv("TELEGRAM_BOT_TOKEN","").strip(); chat=os.getenv("TELEGRAM_CHAT_ID","").strip()
-    if not token or not chat:
+    token=os.getenv("TELEGRAM_BOT_TOKEN","").strip()
+    if not token:
+        print("Telegram token not configured; alert printed only.")
+        print(msg); return False
+    chat=telegram_chat_id(token)
+    if not chat:
+        print("Telegram chat not discovered. Send /start to the bot once.")
         print(msg); return False
     r=S.post(f"https://api.telegram.org/bot{token}/sendMessage",
       json={"chat_id":chat,"text":msg,"disable_web_page_preview":True},timeout=20)
